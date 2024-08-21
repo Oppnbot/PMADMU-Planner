@@ -1,0 +1,7 @@
+<?xml version="1.0" ?>
+<launch>
+    <!-- Start print_node -->
+    <node name="map_reader" pkg="formation_builder" type="map_reader.py" output="screen" />
+    <node name="transformation_server" pkg="formation_builder" type="transformation_server.py" output="screen" />
+    <node name="costmap_reader" pkg="formation_builder" type="costmap_reader.py" output="screen" />
+</launch>

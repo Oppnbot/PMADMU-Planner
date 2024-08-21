@@ -1,0 +1,4 @@
+PixelPos pixel_position
+geometry_msgs/Pose world_position
+float64 occupied_from
+float64 occupied_until

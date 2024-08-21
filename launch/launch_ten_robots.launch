@@ -1,0 +1,113 @@
+<launch>
+  <!-- Basic launch file for one robot in the match_world_common map-->
+
+  <include file="$(find match_gazebo)/launch/scale.launch">
+  </include>
+
+  <arg name="robot1_name"  default="mir1"/>
+  <arg name="robot2_name"  default="mir2"/>
+  <arg name="robot3_name"  default="mir3"/>
+  <arg name="robot4_name"  default="mir4"/>
+  <arg name="robot5_name"  default="mir5"/>
+  <arg name="robot6_name"  default="mir6"/>
+  <arg name="robot7_name"  default="mir7"/>
+  <arg name="robot8_name"  default="mir8"/>
+  <arg name="robot9_name"  default="mir9"/>
+  <arg name="robot10_name"  default="mir10"/>
+  
+  <!-- Choose group for creating a namespace environment if you want to add multiple nodes/includes to that namespace easily -->
+  <group ns="$(arg robot1_name)">
+    <include file="$(find mir_launch_sim)/launch/mir_200.launch">
+        <arg name="robot_x"     default="26.0" />
+        <arg name="robot_y"     default="26.0" />
+        <arg name="robot_yaw"   default="0.0" /> 
+        <arg name="tf_prefix"   default="$(arg robot1_name)" />       
+        <arg name="model_name"  default="$(arg robot1_name)"/>
+    </include>
+  </group> 
+
+  <!-- Just add the ns parameter to the tag to insert this one node/include in the namespace -->
+  <include file="$(find mir_launch_sim)/launch/mir_200.launch" ns="$(arg robot2_name)">
+      <arg name="robot_x"     default="26.0" />
+      <arg name="robot_y"     default="28.0" />
+      <arg name="robot_yaw"   default="0.0" /> 
+      <arg name="tf_prefix"   default="$(arg robot2_name)" />       
+      <arg name="model_name"  default="$(arg robot2_name)"/>
+  </include>
+
+
+  <!-- Just add the ns parameter to the tag to insert this one node/include in the namespace -->
+  <include file="$(find mir_launch_sim)/launch/mir_200.launch" ns="$(arg robot3_name)">
+      <arg name="robot_x"     default="26.0" />
+      <arg name="robot_y"     default="30.0" />
+      <arg name="robot_yaw"   default="0.0" /> 
+      <arg name="tf_prefix"   default="$(arg robot3_name)" />       
+      <arg name="model_name"  default="$(arg robot3_name)"/>
+  </include>
+  
+<!-- Just add the ns parameter to the tag to insert this one node/include in the namespace -->
+  <include file="$(find mir_launch_sim)/launch/mir_200.launch" ns="$(arg robot4_name)">
+      <arg name="robot_x"     default="26.0" />
+      <arg name="robot_y"     default="32.0" />
+      <arg name="robot_yaw"   default="0.0" /> 
+      <arg name="tf_prefix"   default="$(arg robot4_name)" />       
+      <arg name="model_name"  default="$(arg robot4_name)"/>
+  </include>
+
+<!-- Just add the ns parameter to the tag to insert this one node/include in the namespace -->
+  <include file="$(find mir_launch_sim)/launch/mir_200.launch" ns="$(arg robot5_name)">
+      <arg name="robot_x"     default="26.0" />
+      <arg name="robot_y"     default="34.0" />
+      <arg name="robot_yaw"   default="0.0" /> 
+      <arg name="tf_prefix"   default="$(arg robot5_name)" />       
+      <arg name="model_name"  default="$(arg robot5_name)"/>
+  </include>
+
+<!-- Just add the ns parameter to the tag to insert this one node/include in the namespace -->
+  <include file="$(find mir_launch_sim)/launch/mir_200.launch" ns="$(arg robot6_name)">
+      <arg name="robot_x"     default="28.0" />
+      <arg name="robot_y"     default="26.0" />
+      <arg name="robot_yaw"   default="0.0" /> 
+      <arg name="tf_prefix"   default="$(arg robot6_name)" />       
+      <arg name="model_name"  default="$(arg robot6_name)"/>
+  </include>
+
+  <!-- Just add the ns parameter to the tag to insert this one node/include in the namespace -->
+  <include file="$(find mir_launch_sim)/launch/mir_200.launch" ns="$(arg robot7_name)">
+      <arg name="robot_x"     default="28.0" />
+      <arg name="robot_y"     default="28.0" />
+      <arg name="robot_yaw"   default="0.0" /> 
+      <arg name="tf_prefix"   default="$(arg robot7_name)" />       
+      <arg name="model_name"  default="$(arg robot7_name)"/>
+  </include>
+
+  <!-- Just add the ns parameter to the tag to insert this one node/include in the namespace -->
+  <include file="$(find mir_launch_sim)/launch/mir_200.launch" ns="$(arg robot8_name)">
+      <arg name="robot_x"     default="28.0" />
+      <arg name="robot_y"     default="30.0" />
+      <arg name="robot_yaw"   default="0.0" /> 
+      <arg name="tf_prefix"   default="$(arg robot8_name)" />       
+      <arg name="model_name"  default="$(arg robot8_name)"/>
+  </include>
+
+  <!-- Just add the ns parameter to the tag to insert this one node/include in the namespace -->
+  <include file="$(find mir_launch_sim)/launch/mir_200.launch" ns="$(arg robot9_name)">
+      <arg name="robot_x"     default="28.0" />
+      <arg name="robot_y"     default="32.0" />
+      <arg name="robot_yaw"   default="0.0" /> 
+      <arg name="tf_prefix"   default="$(arg robot9_name)" />       
+      <arg name="model_name"  default="$(arg robot9_name)"/>
+  </include>
+
+  <!-- Just add the ns parameter to the tag to insert this one node/include in the namespace -->
+  <include file="$(find mir_launch_sim)/launch/mir_200.launch" ns="$(arg robot10_name)">
+      <arg name="robot_x"     default="28.0" />
+      <arg name="robot_y"     default="34.0" />
+      <arg name="robot_yaw"   default="0.0" /> 
+      <arg name="tf_prefix"   default="$(arg robot10_name)" />       
+      <arg name="model_name"  default="$(arg robot10_name)"/>
+  </include>
+
+
+  <node type="rviz" name="rviz" pkg="rviz" args="-d $(find mir_examples)/rviz/formation_path_planning_visualization.rviz" /><!--2D Navigation-->
+</launch>

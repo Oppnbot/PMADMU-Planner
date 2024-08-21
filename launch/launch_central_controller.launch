@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+<launch>
+    <node name="central_controller" pkg="formation_builder" type="central_controller.py" output="screen">
+    </node>
+
+    <node name="visualization" pkg="formation_builder" type="visualization.py" output="screen">
+    </node>
+</launch>

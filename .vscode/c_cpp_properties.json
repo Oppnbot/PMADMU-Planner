@@ -1,0 +1,26 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/max/catkin_ws/devel/include/**",
+        "/opt/ros/noetic/include/**",
+        "/home/max/catkin_ws/src/laser_geometry/include/**",
+        "/home/max/catkin_ws/src/laserscan_to_pointcloud/include/**",
+        "/home/max/catkin_ws/src/match_mobile_robotics/match_gazebo/include/**",
+        "/home/max/catkin_ws/src/match_mobile_robotics/ur/ur_calibrated_pose_pub/include/**",
+        "/home/max/catkin_ws/src/match_mobile_robotics/ur/ur_controllers_extended/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}
