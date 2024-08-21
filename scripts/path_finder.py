@@ -25,9 +25,9 @@ import numpy as np
 import cv2
 import time
 import heapq
-from formation_builder.msg import PixelPos, GoalPose, Trajectory, FollowerFeedback
-from formation_builder.msg import Waypoint as WaypointMsg
-from formation_builder.srv import TransformPixelToWorld, TransformPixelToWorldResponse, TransformWorldToPixel, TransformWorldToPixelResponse
+from pmadmu_planner.msg import PixelPos, GoalPose, Trajectory, FollowerFeedback
+from pmadmu_planner.msg import Waypoint as WaypointMsg
+from pmadmu_planner.srv import TransformPixelToWorld, TransformPixelToWorldResponse, TransformWorldToPixel, TransformWorldToPixelResponse
 from geometry_msgs.msg import Pose
 from nav_msgs.msg import OccupancyGrid
 
@@ -94,9 +94,9 @@ class PathFinder:
         self.static_obstacles : OccupancyGrid | None = None
         rospy.Subscriber(f'/mir{self.id}/robot_pose', Pose, self.update_pose)
         rospy.Subscriber(f'/mir{self.id}/mir_pose_simple', Pose, self.update_pose)
-        rospy.Subscriber('/formation_builder/static_obstacles', OccupancyGrid, self.read_static_obstacles)
-        self.status_publisher = rospy.Publisher('/formation_builder/follower_status', FollowerFeedback, queue_size=10, latch=True)
-        #self.trajectory_publisher : rospy.Publisher = rospy.Publisher('formation_builder/trajectory', Trajectory, queue_size=10, latch=True)
+        rospy.Subscriber('/pmadmu_planner/static_obstacles', OccupancyGrid, self.read_static_obstacles)
+        self.status_publisher = rospy.Publisher('/pmadmu_planner/follower_status', FollowerFeedback, queue_size=10, latch=True)
+        #self.trajectory_publisher : rospy.Publisher = rospy.Publisher('pmadmu_planner/trajectory', Trajectory, queue_size=10, latch=True)
         return None
 
 
@@ -154,7 +154,7 @@ class PathFinder:
         start_time = time.time()
 
         # Get current position and transform it to pixel space
-        transform_world_to_pixel = rospy.ServiceProxy('/formation_builder/world_to_pixel', TransformWorldToPixel)
+        transform_world_to_pixel = rospy.ServiceProxy('/pmadmu_planner/world_to_pixel', TransformWorldToPixel)
 
         w2p_response : TransformWorldToPixelResponse = transform_world_to_pixel([self.robot_pose.position.x], [self.robot_pose.position.y])
         if len(w2p_response.x_pixel) == 0 or len(w2p_response.y_pixel) == 0:
@@ -350,7 +350,7 @@ class PathFinder:
         # Transform Path from Pixel-Space to World-Space for visualization and path following
         trafo_start_time = time.time()
 
-        transform_pixel_to_world = rospy.ServiceProxy('/formation_builder/pixel_to_world', TransformPixelToWorld)
+        transform_pixel_to_world = rospy.ServiceProxy('/pmadmu_planner/pixel_to_world', TransformPixelToWorld)
         pixel_positions_x : list[int] = [waypoint.pixel_pos[0] for waypoint in waypoints]
         pixel_positions_y : list[int] = [waypoint.pixel_pos[1] for waypoint in waypoints]
         response : TransformPixelToWorldResponse = transform_pixel_to_world(pixel_positions_x, pixel_positions_y)

@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 import rospy
-from formation_builder.msg import GridMap
-from formation_builder.srv import TransformPixelToWorld, TransformPixelToWorldResponse, TransformPixelToWorldRequest
-from formation_builder.srv import TransformWorldToPixel, TransformWorldToPixelResponse, TransformWorldToPixelRequest
+from pmadmu_planner.msg import GridMap
+from pmadmu_planner.srv import TransformPixelToWorld, TransformPixelToWorldResponse, TransformPixelToWorldRequest
+from pmadmu_planner.srv import TransformWorldToPixel, TransformWorldToPixelResponse, TransformWorldToPixelRequest
 
 
 #! these functions only work if all map values are positive. might want to rework this
 class TransformationServer:
     def __init__(self) -> None:
         rospy.init_node('transformation_server')
-        rospy.Subscriber('/formation_builder/gridmap', GridMap, self.update_scaling_factor)
+        rospy.Subscriber('/pmadmu_planner/gridmap', GridMap, self.update_scaling_factor)
         #rospy.Service('pixel_to_world', WorldPos, self.pixel_to_world_callback)
         #rospy.Service('world_to_pixel', PixelPos, self.world_to_pixel_callback)
-        rospy.Service('/formation_builder/world_to_pixel', TransformWorldToPixel, self.world_to_pixel_callback)
-        rospy.Service('/formation_builder/pixel_to_world', TransformPixelToWorld, self.pixel_to_world_callback)
+        rospy.Service('/pmadmu_planner/world_to_pixel', TransformWorldToPixel, self.world_to_pixel_callback)
+        rospy.Service('/pmadmu_planner/pixel_to_world', TransformPixelToWorld, self.pixel_to_world_callback)
         
         self.scaling_factor : float | None = None # world res / pixel res
         self.grid_size : tuple[int, int] | None = None

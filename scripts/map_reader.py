@@ -8,24 +8,24 @@ import numpy as np
 import cv2
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
-from formation_builder.msg import GridMap
+from pmadmu_planner.msg import GridMap
 
 
 class MapReader:
     resolution : float = 0.6  #0.6 # [m] per grid cell
-    show_debug_images : bool = True
-    show_debug_prints : bool = True
+    show_debug_images : bool = False
+    show_debug_prints : bool = False
 
     def __init__(self) -> None:
         self.input_map: OccupancyGrid | None = None
         self.cvbridge : CvBridge = CvBridge()
         rospy.init_node('map_reader')
         
-        rospy.Subscriber("/formation_builder/merged_costmap", OccupancyGrid, self.read_map)
+        rospy.Subscriber("/pmadmu_planner/merged_costmap", OccupancyGrid, self.read_map)
         #rospy.Subscriber('/map', OccupancyGrid, self.read_map)
-        self.obstacles_pub : rospy.Publisher = rospy.Publisher('/formation_builder/static_obstacles', OccupancyGrid, queue_size=10, latch=True)
-        self.image_pub : rospy.Publisher = rospy.Publisher('/formation_builder/map', Image, queue_size=10, latch=True)
-        self.grid_map_pub : rospy.Publisher = rospy.Publisher('/formation_builder/gridmap', GridMap, queue_size=5, latch=True)
+        self.obstacles_pub : rospy.Publisher = rospy.Publisher('/pmadmu_planner/static_obstacles', OccupancyGrid, queue_size=10, latch=True)
+        self.image_pub : rospy.Publisher = rospy.Publisher('/pmadmu_planner/map', Image, queue_size=10, latch=True)
+        self.grid_map_pub : rospy.Publisher = rospy.Publisher('/pmadmu_planner/gridmap', GridMap, queue_size=5, latch=True)
         self.scaling_factor : float | None = None
         rospy.spin()
         return None

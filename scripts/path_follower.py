@@ -13,9 +13,9 @@ from laser_scanner import LaserScanner
 from nav_msgs.msg import OccupancyGrid
 import os
 import csv
-from formation_builder.srv import TransformWorldToPixel, TransformWorldToPixelResponse
+from pmadmu_planner.srv import TransformWorldToPixel, TransformWorldToPixelResponse
 from geometry_msgs.msg import Twist, PoseStamped, Point, Pose
-from formation_builder.msg import Trajectory, Trajectories, Waypoint, FollowerFeedback
+from pmadmu_planner.msg import Trajectory, Trajectories, Waypoint, FollowerFeedback
 from tf.transformations import euler_from_quaternion
 
 
@@ -59,16 +59,16 @@ class PathFollower:
         self.k_angular : float = 2.0 # higher value -> faster turnings
         
         self.scanner : LaserScanner = LaserScanner(self.robot_id)
-        self.status_publisher = rospy.Publisher('/formation_builder/follower_status', FollowerFeedback, queue_size=10, latch=True)
+        self.status_publisher = rospy.Publisher('/pmadmu_planner/follower_status', FollowerFeedback, queue_size=10, latch=True)
         rate : rospy.Rate = rospy.Rate(100)
         while not self.scanner.initialized:
             rate.sleep()
-        rospy.Subscriber('formation_builder/trajectories', Trajectories, self.trajectory_update)
+        rospy.Subscriber('pmadmu_planner/trajectories', Trajectories, self.trajectory_update)
         rospy.Subscriber(f'/mir{self.robot_id}/robot_pose', Pose, self.update_pose)
         rospy.Subscriber(f'/mir{self.robot_id}/mir_pose_simple', Pose, self.update_pose)
         rospy.Subscriber(f'/mir{self.robot_id}/scan', LaserScan, self.safety_limit_update)
-        rospy.Subscriber('/formation_builder/follower_status', FollowerFeedback, self.receive_feedback)
-        rospy.Subscriber('/formation_builder/static_obstacles', OccupancyGrid, self.update_costmap)
+        rospy.Subscriber('/pmadmu_planner/follower_status', FollowerFeedback, self.receive_feedback)
+        rospy.Subscriber('/pmadmu_planner/static_obstacles', OccupancyGrid, self.update_costmap)
 
         self.goal_publisher = rospy.Publisher(f'/mir{self.robot_id}/move_base_simple/goal', PoseStamped, queue_size=10)
         self.cmd_publisher = rospy.Publisher(f'/mir{self.robot_id}/cmd_vel', Twist, queue_size=10)
@@ -140,7 +140,7 @@ class PathFollower:
         if self.stop_moving:
             return None
         
-        transform_world_to_pixel = rospy.ServiceProxy('/formation_builder/world_to_pixel', TransformWorldToPixel)
+        transform_world_to_pixel = rospy.ServiceProxy('/pmadmu_planner/world_to_pixel', TransformWorldToPixel)
         w2p_response : TransformWorldToPixelResponse = transform_world_to_pixel([self.robot_pose.position.x], [self.robot_pose.position.y])
         if len(w2p_response.x_pixel) == 0 or len(w2p_response.y_pixel) == 0:
             rospy.logwarn(f"[Follower {self.robot_id}] position watchdog failed to convert position to pixel space.")
@@ -289,11 +289,11 @@ class PathFollower:
         
         if self.trajectory.planner_id == 1 and self.target_waypoint is not None:
         
-            marker_pub = rospy.Publisher('/formation_builder/pure_pursuit', Marker, queue_size=10, latch=True)
+            marker_pub = rospy.Publisher('/pmadmu_planner/pure_pursuit', Marker, queue_size=10, latch=True)
             marker: Marker = Marker()
             marker.header.frame_id = "map"
             marker.header.stamp = rospy.Time.now()
-            marker.ns = "formation_builder"
+            marker.ns = "pmadmu_planner"
             marker.id = self.trajectory.planner_id
             marker.type = Marker.CYLINDER
             marker.action = Marker.ADD

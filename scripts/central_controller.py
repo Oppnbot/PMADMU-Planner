@@ -9,7 +9,7 @@ import time
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from path_finder import PathFinder
-from formation_builder.msg import Formation, GoalPose, Trajectory, Trajectories, FollowerFeedback
+from pmadmu_planner.msg import Formation, GoalPose, Trajectory, Trajectories, FollowerFeedback
 from geometry_msgs.msg import Pose
 
 
@@ -18,8 +18,8 @@ class CentralController:
         rospy.init_node('CentralController')
 
         rospy.loginfo("[CController] Waiting for Services")
-        rospy.wait_for_service('/formation_builder/pixel_to_world')
-        rospy.wait_for_service('/formation_builder/world_to_pixel')
+        rospy.wait_for_service('/pmadmu_planner/pixel_to_world')
+        rospy.wait_for_service('/pmadmu_planner/world_to_pixel')
         rospy.loginfo("[CController] transformation services is running!")
 
         topics = rospy.get_published_topics()
@@ -39,11 +39,11 @@ class CentralController:
         self.current_formation : Formation | None = None
         self.grid : np.ndarray | None = None
         self.cv_bridge : CvBridge = CvBridge()
-
-        self.follower_feedback_subscriber : rospy.Subscriber = rospy.Subscriber('formation_builder/follower_status', FollowerFeedback, self.follower_feedback)
-        self.formation_subscriber : rospy.Subscriber = rospy.Subscriber("/formation_builder/formation", Formation, self.build_formation)
-        self.map_subscriber : rospy.Subscriber = rospy.Subscriber("formation_builder/map", Image, self.map_callback)
-        self.trajectory_publisher : rospy.Publisher = rospy.Publisher('formation_builder/trajectories', Trajectories, queue_size=10, latch=True)
+        
+        self.map_subscriber : rospy.Subscriber = rospy.Subscriber("pmadmu_planner/map", Image, self.map_callback)
+        self.follower_feedback_subscriber : rospy.Subscriber = rospy.Subscriber('pmadmu_planner/follower_status', FollowerFeedback, self.follower_feedback)
+        self.trajectory_publisher : rospy.Publisher = rospy.Publisher('pmadmu_planner/trajectories', Trajectories, queue_size=10, latch=True)
+        self.formation_subscriber : rospy.Subscriber = rospy.Subscriber("/pmadmu_planner/formation", Formation, self.build_formation)
         return None
     
 
@@ -116,9 +116,19 @@ class CentralController:
 
 
     def build_formation(self, formation : Formation) -> None:
+
+        wait_time : float = time.time()
+        while self.grid is None and not rospy.is_shutdown():
+            rospy.loginfo("[CController] Planner waiting for map data...")
+            rate : rospy.Rate = rospy.Rate(1)
+            rate.sleep()
+            if time.time() - wait_time > 10.0:
+                break
+        
         if self.grid is None:
-            rospy.logwarn("[CController] Failed to plan paths since there is no map data.")
+            rospy.logwarn("[CController] Failed to plan paths since there is no map data...")
             return None
+        
         if formation.goal_poses is None:
             rospy.logwarn("[CController] Received an empty formation request.")
             return None
@@ -225,7 +235,7 @@ if __name__ == '__main__':
     formation_line_north_reversed = [ (38.5, 38, north), (36, 38, north),(33.5, 38, north), (31, 38, north)]
     formation_line_south = [(31, 34, north), (33.5, 34, north), (36, 34, north), (38.5, 34, north)]
 
-    formation_line_ten_robots = [(53, 53, east),(53, 50, east),(53, 47, east),(53, 44, east)]#[(53, 51, east),(53, 49, east),(53, 47, east),(53, 45, east),(53, 43, east),(53, 41, north),(53, 39, north),(53, 37, north),(53, 35, north),(53, 33, north),]
+    formation_line_ten_robots : list[tuple[float, float, float]] = [(53, 53, east),(53, 50, east),(53, 47, east),(53, 44, east)]#[(53, 51, east),(53, 49, east),(53, 47, east),(53, 45, east),(53, 43, east),(53, 41, north),(53, 39, north),(53, 37, north),(53, 35, north),(53, 33, north),]
     formation_scrambled_ten_robots = []
     goal_positions : list[tuple[float, float, float]] = formation_line_ten_robots
 
@@ -235,7 +245,7 @@ if __name__ == '__main__':
     rate : rospy.Rate = rospy.Rate(1)
     rate.sleep()
 
-    temp_pub : rospy.Publisher = rospy.Publisher("/formation_builder/formation", Formation, queue_size=10, latch=True)
+    temp_pub : rospy.Publisher = rospy.Publisher("/pmadmu_planner/formation", Formation, queue_size=10, latch=True)
     temp_pub.publish(test_formation)
 
     rospy.spin()

@@ -35,8 +35,7 @@ import time
 import heapq
 from commons import TrajectoryData, Waypoint
 from visualization import fb_visualizer
-#from formation_builder.srv import transformation
-from formation_builder.srv import TransformPixelToWorld, TransformPixelToWorldResponse
+from pmadmu_planner.srv import TransformPixelToWorld, TransformPixelToWorldResponse
 
 
 class Spawner:
@@ -83,7 +82,7 @@ class Spawner:
         rospy.wait_for_service('pixel_to_world')
         rospy.loginfo("transformation service is running!")
         
-        rospy.Subscriber('/formation_builder/map', Image, self.map_callback)
+        rospy.Subscriber('/pmadmu_planner/map', Image, self.map_callback)
 
         return None
     

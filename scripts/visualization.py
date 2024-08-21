@@ -7,11 +7,11 @@ import numpy as np
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import colorsys
-from formation_builder.msg import Trajectory, Trajectories, Waypoint
+from pmadmu_planner.msg import Trajectory, Trajectories, Waypoint
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Point
 import time
-from formation_builder.msg import GridMap
+from pmadmu_planner.msg import GridMap
 from nav_msgs.msg import OccupancyGrid
 
 
@@ -19,10 +19,10 @@ class Visualization():
     def __init__(self) -> None:
         rospy.init_node('Visualization')
         self.cv_bridge : CvBridge = CvBridge()
-        self.debug_image_pub : rospy.Publisher = rospy.Publisher("/formation_builder/debug_image", Image, queue_size=1, latch=True)
-        self.grid_map_sub : rospy.Subscriber = rospy.Subscriber('/formation_builder/gridmap', GridMap, self.grid_map_callback)
+        self.debug_image_pub : rospy.Publisher = rospy.Publisher("/pmadmu_planner/debug_image", Image, queue_size=1, latch=True)
+        self.grid_map_sub : rospy.Subscriber = rospy.Subscriber('/pmadmu_planner/gridmap', GridMap, self.grid_map_callback)
         self.map_sub: rospy.Subscriber = rospy.Subscriber('/map', OccupancyGrid, self.map_callback)
-        self.trajectories_sub: rospy.Subscriber = rospy.Subscriber('/formation_builder/trajectories', Trajectories, self.receive_trajectories)
+        self.trajectories_sub: rospy.Subscriber = rospy.Subscriber('/pmadmu_planner/trajectories', Trajectories, self.receive_trajectories)
         self.grid_map : GridMap | None = None
         self.map : OccupancyGrid | None = None
         self.current_image_data : np.ndarray = np.zeros((100, 100))
@@ -154,7 +154,7 @@ class Visualization():
 
         # Publish the image
         image_msg = self.cv_bridge.cv2_to_imgmsg(image_matrix, encoding="rgb8")
-        timing_pub = rospy.Publisher("/formation_builder/timing_image", Image, queue_size=20, latch=True)
+        timing_pub = rospy.Publisher("/pmadmu_planner/timing_image", Image, queue_size=20, latch=True)
         timing_pub.publish(image_msg)
 
         if sleep is not None:
@@ -177,7 +177,7 @@ class Visualization():
         
         marker_array : MarkerArray = MarkerArray()
         marker_array.markers = []
-        marker_pub = rospy.Publisher('/formation_builder/visualization_markers', MarkerArray, queue_size=10, latch=True)
+        marker_pub = rospy.Publisher('/pmadmu_planner/visualization_markers', MarkerArray, queue_size=10, latch=True)
         elapsed_time : float = time.time() - self.trajectories.timestamp        
 
         for trajectory in self.trajectories.trajectories:
@@ -185,7 +185,7 @@ class Visualization():
                 marker: Marker = Marker()
                 marker.header.frame_id = "map"
                 marker.header.stamp = rospy.Time.now()
-                marker.ns = "formation_builder"
+                marker.ns = "pmadmu_planner"
                 marker.id = trajectory.planner_id
                 marker.type = Marker.CUBE_LIST
                 marker.action = Marker.ADD
