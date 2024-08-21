@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>PMADMU_Planner</name>
+  <name>pmadmu_planner</name>
   <version>0.0.0</version>
   <description>The PMADMU planner (“Prioritized Multi-Agent Dijkstra with Motion Uncertainty”) transfers mobile robot units into a defined formation. The planner was developed at Leibniz Universität Hannover's (LUH) Institute of Assembly Technology and Robotics (match) as part of a master's thesis.</description>
 
