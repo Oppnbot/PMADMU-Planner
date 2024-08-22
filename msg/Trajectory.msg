@@ -1,3 +1,4 @@
+string robot_name
 int32 planner_id
 Waypoint[] path
 Waypoint[] occupied_positions

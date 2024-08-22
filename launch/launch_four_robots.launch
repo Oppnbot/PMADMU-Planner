@@ -4,10 +4,10 @@
   <include file="$(find match_gazebo)/launch/scale.launch">
   </include>
 
-  <arg name="robot1_name"  default="mir1"/>
-  <arg name="robot2_name"  default="mir2"/>
-  <arg name="robot3_name"  default="mir3"/>
-  <arg name="robot4_name"  default="mir4"/>
+  <arg name="robot1_name"  default="mur620a"/>
+  <arg name="robot2_name"  default="mur620b"/>
+  <arg name="robot3_name"  default="mur620c"/>
+  <arg name="robot4_name"  default="mur620d"/>
   
   <!-- Choose group for creating a namespace environment if you want to add multiple nodes/includes to that namespace easily -->
   <group ns="$(arg robot1_name)">

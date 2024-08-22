@@ -28,17 +28,18 @@ class CentralController:
         self.unique_mir_ids.append(str(rospy.get_param('~robot1_name')))
         self.unique_mir_ids.append(str(rospy.get_param('~robot2_name')))
         self.unique_mir_ids.append(str(rospy.get_param('~robot3_name')))
+        rospy.loginfo(f"[CController] Registered {len(self.unique_mir_ids)} mir bots, with the IDs: {self.unique_mir_ids}")
 
         leader_pose_str : str = str(rospy.get_param(f'~leader_position'))
         leader_pose = ast.literal_eval(leader_pose_str)
         rospy.loginfo(f"Received the leader pose at {leader_pose}")
         
-        self.formation : Formation = Formation()
-        self.formation.goal_poses = []
+        formation : Formation = Formation()
+        formation.goal_poses = []
         #self.goal_positions : list[tuple[float, float, float]] = []
         #
 
-        rospy.loginfo(f"[CController] Registered {len(self.unique_mir_ids)} mir bots, with the IDs: {self.unique_mir_ids}")
+        
 
         
         for index, robot_name in enumerate(self.unique_mir_ids):
@@ -48,34 +49,34 @@ class CentralController:
             rospy.loginfo(f"Received a relative goal pose for {robot_name} at: {robot_position}")
 
             goal_pose : GoalPose = GoalPose()
-            goal_pose.planner_id = index
+            goal_pose.robot_name = robot_name
 
             pose : Pose = Pose()
-
-
 
             pose.position.x = leader_pose[0] + robot_position[0] * np.cos(leader_pose[2]) + robot_position[1] * np.sin(leader_pose[2])
             pose.position.y = leader_pose[1] + robot_position[0] * np.sin(leader_pose[2]) + robot_position[1] * np.cos(leader_pose[2])
             pose.position.z = 0.0
             pose.orientation.z = robot_position[2]
-
-            rospy.logerr(f"x: {pose.position.x}/ y: {pose.position.y}")
-
             goal_pose.goal = pose
             goal_pose.priority = index
-            self.formation.goal_poses.append(goal_pose)
+            formation.goal_poses.append(goal_pose)
 
 
-        self.path_finders : dict[str, PathFinder] = {id: PathFinder(id) for id in self.unique_mir_ids}
+        self.path_finders : dict[str, PathFinder] = {name: PathFinder(robot_name=name, robot_id=index) for index, name in enumerate(self.unique_mir_ids)}
         #self.path_followers:dict[int, PathFollower] = {id: PathFollower(id) for id in self.unique_mir_ids}
         self.current_formation : Formation | None = None
         self.grid : np.ndarray | None = None
         self.cv_bridge : CvBridge = CvBridge()
         
-        self.map_subscriber : rospy.Subscriber = rospy.Subscriber("pmadmu_planner/map", Image, self.map_callback)
-        self.follower_feedback_subscriber : rospy.Subscriber = rospy.Subscriber('pmadmu_planner/follower_status', FollowerFeedback, self.follower_feedback)
-        self.trajectory_publisher : rospy.Publisher = rospy.Publisher('pmadmu_planner/trajectories', Trajectories, queue_size=10, latch=True)
+        self.map_subscriber : rospy.Subscriber = rospy.Subscriber("/pmadmu_planner/map", Image, self.map_callback)
+        self.follower_feedback_subscriber : rospy.Subscriber = rospy.Subscriber('/pmadmu_planner/follower_status', FollowerFeedback, self.follower_feedback)
+        self.trajectory_publisher : rospy.Publisher = rospy.Publisher('/pmadmu_planner/trajectories', Trajectories, queue_size=10, latch=True)
         self.formation_subscriber : rospy.Subscriber = rospy.Subscriber("/pmadmu_planner/formation", Formation, self.build_formation)
+
+
+        # Send formation request; remove this if you want to trigger the planning process by external nodes
+        formation_publisher : rospy.Publisher = rospy.Publisher("/pmadmu_planner/formation", Formation, queue_size=10, latch=True)
+        formation_publisher.publish(formation)
         return None
     
 
@@ -100,7 +101,7 @@ class CentralController:
         prio_counter : dict[int, int] = {}
         for goal_pose in self.current_formation.goal_poses:
             if goal_pose.priority is None:
-                rospy.loginfo(f"[CController] Priority of Robot {goal_pose.planner_id} is None. Will reset priorities")
+                rospy.loginfo(f"[CController] Priority of Robot {goal_pose.robot_name} is None. Will reset priorities")
                 return False
             prio_counter[goal_pose.priority] = prio_counter.get(goal_pose.priority, 0) + 1
 
@@ -126,23 +127,23 @@ class CentralController:
         return None
     
     
-    def reassign_priorities(self, robot_id : int) -> bool:
+    def reassign_priorities(self, robot_name : str) -> bool:
         if self.current_formation is None or self.current_formation.goal_poses is None:
-            rospy.logerr(f"[CController] Can't change Priority of Robot {robot_id} since goal poses or current formation are None")
+            rospy.logerr(f"[CController] Can't change Priority of Robot {robot_name} since goal poses or current formation are None")
             return False
         # set failed planner to highest priority
         prio_failed_robot : int = -1
         for goal_pose in self.current_formation.goal_poses:
-            if goal_pose.planner_id == robot_id:
+            if goal_pose.robot_name == robot_name:
                 prio_failed_robot = goal_pose.priority
                 goal_pose.priority = 1
                 break
         if prio_failed_robot == -1:
-            rospy.logerr(f"[CController] Can't change Priority of Robot {robot_id} since planner id seems to not exist in the current formation.")
+            rospy.logerr(f"[CController] Can't change Priority of Robot {robot_name} since planner id seems to not exist in the current formation.")
             return False
         # adjust priorities of remaining robots
         for goal_pose in self.current_formation.goal_poses:
-            if goal_pose.planner_id != robot_id and goal_pose.priority < prio_failed_robot:
+            if goal_pose.robot_name != robot_name and goal_pose.priority < prio_failed_robot:
                 goal_pose.priority += 1
         return True
 
@@ -174,21 +175,21 @@ class CentralController:
             rospy.loginfo("[CController] Priorities are set correctly.")
         
         planned_trajectories : list[Trajectory] = []
-        failed_planner : int | None = None
+        failed_planner : str | None = None
         formation.goal_poses.sort(key=lambda x: x.priority)
         for gp in formation.goal_poses:
             goal_pose : GoalPose = gp
-            if goal_pose.planner_id not in self.path_finders.keys():
-                rospy.logwarn(f"[CController] Received a request for robot {goal_pose.planner_id} but this robot seems to not exist.")
+            if goal_pose.robot_name not in self.path_finders.keys():
+                rospy.logwarn(f"[CController] Received a request for robot {goal_pose.robot_name} but this robot seems to not exist.")
                 continue
             if goal_pose.goal is None:
-                rospy.logwarn(f"[CController] Received a request for robot {goal_pose.planner_id} the goal position is none.")
+                rospy.logwarn(f"[CController] Received a request for robot {goal_pose.robot_name} the goal position is none.")
                 continue
-            planned_trajectory : Trajectory | None = self.path_finders[goal_pose.planner_id].search_path(self.grid, goal_pose, planned_trajectories)
+            planned_trajectory : Trajectory | None = self.path_finders[goal_pose.robot_name].search_path(self.grid, goal_pose, planned_trajectories)
             if planned_trajectory is not None:
                 planned_trajectories.append(planned_trajectory)
             else:
-                failed_planner = goal_pose.planner_id
+                failed_planner = goal_pose.robot_name
                 rospy.logwarn(f"[CController] Planner failed {failed_planner}")
                 break
 
@@ -197,12 +198,12 @@ class CentralController:
         if failed_planner is not None:
             rospy.logwarn(f"[CController] ------------ Planning failed! ({time.time()-start_time:.3f}s) ------------ ")
             for goal_pose in formation.goal_poses:
-                if goal_pose.planner_id == failed_planner:
+                if goal_pose.robot_name == failed_planner:
                     if goal_pose.priority == 1:
                         rospy.logerr(f"[CController] Planner {failed_planner} failed with highest priority. There is no valid solution.")
                         return None
                     break
-            if self.reassign_priorities(failed_planner):
+            if self.reassign_priorities(goal_pose.robot_name):
                 rospy.loginfo("[CController] Retrying with reordered priorites...")
                 self.build_formation(self.current_formation)
             else:
@@ -236,10 +237,10 @@ class CentralController:
 
 
     
-    def generate_formation_position(self, id : int, goal : tuple[float, float, float], size : float = 1.0) -> GoalPose:
+    def generate_formation_position(self, robot_name : str, goal : tuple[float, float, float], size : float = 1.0) -> GoalPose:
         rospy.loginfo(f"[CController] Generating request for robot {id}")
         request : GoalPose = GoalPose()
-        request.planner_id = id
+        request.robot_name = robot_name
         request.goal = Pose()
         request.goal.position.x, request.goal.position.y = goal[0], goal[1]
         request.goal.orientation.z = goal[2]
@@ -271,13 +272,13 @@ if __name__ == '__main__':
     formation_scrambled_ten_robots = []
     goal_positions : list[tuple[float, float, float]] = formation_line_ten_robots
 
-    for index, goal_position in enumerate(goal_positions):
-        test_formation.goal_poses.append(central_controller.generate_formation_position(index+1, goal_position, size=1.0))
+    #for index, goal_position in enumerate(goal_positions):
+    #    test_formation.goal_poses.append(central_controller.generate_formation_position(index+1, goal_position, size=1.0))
 
     rate : rospy.Rate = rospy.Rate(1)
     rate.sleep()
 
-    temp_pub : rospy.Publisher = rospy.Publisher("/pmadmu_planner/formation", Formation, queue_size=10, latch=True)
-    temp_pub.publish(test_formation)
+    #temp_pub : rospy.Publisher = rospy.Publisher("/pmadmu_planner/formation", Formation, queue_size=10, latch=True)
+    #temp_pub.publish(test_formation)
 
     rospy.spin()

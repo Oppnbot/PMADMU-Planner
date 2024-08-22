@@ -18,27 +18,25 @@ class CostMapReader:
 
         self.robot_tracing : int = 50 # how many of the last robot positions should be used to clear the robots previous path from the costmap?
 
-        self.costmaps : dict[int, OccupancyGrid] = {} # Original Costmaps. Useful since they contain infos about the data structure, header...
-        self.costmap_data : dict[int, np.ndarray] = {} # Costmap Data. This is a reshaped version of the original for easier usage
-        self.robot_positions : dict[int, Pose] = {}
-        self.robot_pixel_positions : dict[int, list[tuple[int, int]]] = {}
+        self.costmaps : dict[str, OccupancyGrid] = {} # Original Costmaps. Useful since they contain infos about the data structure, header...
+        self.costmap_data : dict[str, np.ndarray] = {} # Costmap Data. This is a reshaped version of the original for easier usage
+        self.robot_positions : dict[str, Pose] = {}
+        self.robot_pixel_positions : dict[str, list[tuple[int, int]]] = {}
 
-        # Scan Topics for Mir-Robots to create subscribers. ALL ROBOTS MUST BE NAMED LIKE THIS: mir1
-        topics = rospy.get_published_topics()
-        self.unique_mir_ids : set[int] = set()
-        pattern = r"/mir(\d+)/"
-        for topic in topics:
-            match_string = re.search(pattern, str(topic))
-            if match_string:
-                robot_id = int(match_string.group(1))
-                self.unique_mir_ids.add(robot_id)
+        self.unique_mir_ids : list[str] = []
+        self.unique_mir_ids.append(str(rospy.get_param('~robot0_name')))
+        self.unique_mir_ids.append(str(rospy.get_param('~robot1_name')))
+        self.unique_mir_ids.append(str(rospy.get_param('~robot2_name')))
+        self.unique_mir_ids.append(str(rospy.get_param('~robot3_name')))
+        rospy.loginfo(f"[CController] Registered {len(self.unique_mir_ids)} mir bots, with the IDs: {self.unique_mir_ids}")
 
-        self.costmap_subscribers : list[rospy.Subscriber] = [rospy.Subscriber(f"/mir{robot_id}/move_base_flex/global_costmap/costmap", OccupancyGrid, self.read_costmap, callback_args=robot_id) for robot_id in self.unique_mir_ids]
-        self.costmap_update_subscribers : list[rospy.Subscriber] = [rospy.Subscriber(f"/mir{robot_id}/move_base_flex/global_costmap/costmap_updates", OccupancyGridUpdate, self.update_costmap, callback_args=robot_id) for robot_id in self.unique_mir_ids]
-        self.robot_position_subscribers_real : list[rospy.Subscriber] = [rospy.Subscriber(f'/mir{robot_id}/robot_pose', Pose, self.update_robot_pose, callback_args=robot_id) for robot_id in self.unique_mir_ids]
-        self.robot_position_subscribers : list[rospy.Subscriber] = [rospy.Subscriber(f'/mir{robot_id}/mir_pose_simple', Pose, self.update_robot_pose, callback_args=robot_id) for robot_id in self.unique_mir_ids]
 
-        self.clear_services : list[rospy.ServiceProxy] = [rospy.ServiceProxy(f"/mir{robot_id}/move_base_flex/clear_costmaps", Empty) for robot_id in self.unique_mir_ids]
+        self.costmap_subscribers : list[rospy.Subscriber] = [rospy.Subscriber(f"/{robot_name}/move_base_flex/global_costmap/costmap", OccupancyGrid, self.read_costmap, callback_args=robot_name) for robot_name in self.unique_mir_ids]
+        self.costmap_update_subscribers : list[rospy.Subscriber] = [rospy.Subscriber(f"/{robot_name}/move_base_flex/global_costmap/costmap_updates", OccupancyGridUpdate, self.update_costmap, callback_args=robot_name) for robot_name in self.unique_mir_ids]
+        self.robot_position_subscribers_real : list[rospy.Subscriber] = [rospy.Subscriber(f'/{robot_name}/robot_pose', Pose, self.update_robot_pose, callback_args=robot_name) for robot_name in self.unique_mir_ids]
+        self.robot_position_subscribers : list[rospy.Subscriber] = [rospy.Subscriber(f'/{robot_name}/mir_pose_simple', Pose, self.update_robot_pose, callback_args=robot_name) for robot_name in self.unique_mir_ids]
+
+        self.clear_services : list[rospy.ServiceProxy] = [rospy.ServiceProxy(f"/{robot_name}/move_base_flex/clear_costmaps", Empty) for robot_name in self.unique_mir_ids]
 
         rospy.Timer(rospy.Duration.from_sec(0.5), self.clear_costmaps, oneshot=False)
         rospy.Timer(rospy.Duration.from_sec(0.5), self.merge_costmaps, oneshot=False)
@@ -75,7 +73,7 @@ class CostMapReader:
         return None
     
 
-    def remove_robots_from_costmap_via_blobs(self, costmap: np.ndarray, ignore_robot : int) -> np.ndarray:
+    def remove_robots_from_costmap_via_blobs(self, costmap: np.ndarray, ignore_robot : str) -> np.ndarray:
         #! deprecated; not a good idea to use this function since the blobs are unreliable and may not cover the entire robot  
         # remove invalid pixels
         valid_pixels = costmap >= 0
@@ -88,8 +86,8 @@ class CostMapReader:
         contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         for contour in contours:
-            for robot_id, position in self.robot_pixel_positions.items():
-                if robot_id == ignore_robot:
+            for robot_name, position in self.robot_pixel_positions.items():
+                if robot_name == ignore_robot:
                     continue
                 is_inside_contour : bool = cv2.pointPolygonTest(contour, position, measureDist=False) >= 0 # type: ignore since stubs are missing
                 if is_inside_contour:
@@ -98,7 +96,7 @@ class CostMapReader:
         return np.int8(image) # type: ignore
     
 
-    def remove_robots_from_costmap(self, costmap: np.ndarray, ignore_robot : int) -> np.ndarray:
+    def remove_robots_from_costmap(self, costmap: np.ndarray, ignore_robot : str) -> np.ndarray:
         if ignore_robot not in self.costmaps:
             return costmap
         valid_pixels = costmap >= 0
@@ -107,8 +105,8 @@ class CostMapReader:
         
         robot_size : float = 2.5
         clearing_radius : int = int(np.round(robot_size / self.costmaps[ignore_robot].info.resolution)) # todo: make this a config parameter
-        for robot_id, positions in self.robot_pixel_positions.items():
-            if robot_id == ignore_robot:
+        for robot_name, positions in self.robot_pixel_positions.items():
+            if robot_name == ignore_robot:
                 continue
             for position in positions:
                 cv2.circle(image, position, clearing_radius, color=0, thickness=-1)  # type: ignore
@@ -116,51 +114,51 @@ class CostMapReader:
     
 
     
-    def update_robot_pose(self, pose: Pose, robot_id : int = -1) -> None:
-        if robot_id == -1:
-            rospy.logwarn("[CMap Reader]: Invalid Robot ID in Pose Update")
+    def update_robot_pose(self, pose: Pose, robot_name : str = "") -> None:
+        if robot_name == "":
+            rospy.logwarn("[CMap Reader]: Invalid Robot Name in Pose Update")
             return None
-        if robot_id not in self.costmaps:
+        if robot_name not in self.costmaps:
             return None
-        self.robot_positions[robot_id] = pose
+        self.robot_positions[robot_name] = pose
         return None
     
 
     def log_robot_positons(self, _) -> None:
-        for robot_id, position in self.robot_positions.items():
-            if robot_id not in self.robot_pixel_positions.keys():
-                self.robot_pixel_positions[robot_id] = []
+        for robot_name, position in self.robot_positions.items():
+            if robot_name not in self.robot_pixel_positions.keys():
+                self.robot_pixel_positions[robot_name] = []
             # Convert Pose to Pixel Position
-            x_pos : int = int(np.round(position.position.x / self.costmaps[robot_id].info.resolution))
-            y_pos : int = int(np.round(position.position.y / self.costmaps[robot_id].info.resolution))
-            self.robot_pixel_positions[robot_id].append((x_pos, y_pos))
-            if len(self.robot_pixel_positions[robot_id]) > self.robot_tracing:
-                self.robot_pixel_positions[robot_id].pop(0)
+            x_pos : int = int(np.round(position.position.x / self.costmaps[robot_name].info.resolution))
+            y_pos : int = int(np.round(position.position.y / self.costmaps[robot_name].info.resolution))
+            self.robot_pixel_positions[robot_name].append((x_pos, y_pos))
+            if len(self.robot_pixel_positions[robot_name]) > self.robot_tracing:
+                self.robot_pixel_positions[robot_name].pop(0)
         return None
 
 
-    def update_costmap(self, costmap_update: OccupancyGridUpdate, robot_id : int = -1) -> None:
+    def update_costmap(self, costmap_update: OccupancyGridUpdate, robot_name : str = "") -> None:
         # Costmap Update. Does trigger regularly but only contains data from robots proximity. have to merge it with the initial costmap
-        if robot_id not in self.costmaps or robot_id not in self.costmap_data:
-            rospy.logwarn(f"[CMap Reader]: Robot ID {robot_id} is invalid; May not be fully initialized yet")
+        if robot_name not in self.costmaps or robot_name not in self.costmap_data:
+            rospy.logwarn(f"[CMap Reader]: Robot Name {robot_name} is invalid; May not be fully initialized yet")
             return None
-        self.costmaps[robot_id].data = costmap_update.data
+        self.costmaps[robot_name].data = costmap_update.data
 
-        costmap = self.costmap_data[robot_id].copy()
+        costmap = self.costmap_data[robot_name].copy()
         costmap[costmap_update.y:costmap_update.y+costmap_update.height, costmap_update.x:costmap_update.x+costmap_update.width] = np.reshape(costmap_update.data, (costmap_update.height, costmap_update.width))
-        self.costmap_data[robot_id] = self.remove_robots_from_costmap(costmap, robot_id)
+        self.costmap_data[robot_name] = self.remove_robots_from_costmap(costmap, robot_name)
         return None
     
 
-    def read_costmap(self, costmap : OccupancyGrid, robot_id : int = -1) -> None:
+    def read_costmap(self, costmap : OccupancyGrid, robot_name : str = "") -> None:
         # Initial Costmap Init. Does only trigger once so we have to update the costmap manually using update_costmap()
-        if robot_id == -1:
-            rospy.logwarn(f"[CMap Reader]: Robot ID {robot_id} is invalid")
+        if robot_name == "":
+            rospy.logwarn(f"[CMap Reader]: Robot Name is invalid")
             return None
-        rospy.loginfo(f"[CMap Reader]: Received a Map for Robot {robot_id}")
-        self.costmaps[robot_id] = costmap
+        rospy.loginfo(f"[CMap Reader]: Received a Map for Robot {robot_name}")
+        self.costmaps[robot_name] = costmap
         costmap_data : np.ndarray = np.reshape(costmap.data, (costmap.info.height, costmap.info.width))
-        self.costmap_data[robot_id] = costmap_data
+        self.costmap_data[robot_name] = costmap_data
         #todo: remove robots and robot trails from costmap
         return None
 

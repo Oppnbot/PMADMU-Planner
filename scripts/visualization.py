@@ -79,7 +79,7 @@ class Visualization():
             image_matrix = self.current_image_data
         color = self.generate_distinct_colors(number_of_agents, trajectory.planner_id, value=0.7)
         if trajectory.path is None:
-            rospy.logwarn(f"[Visualization] Can't draw path for robot {trajectory.planner_id} since there is no path specified.")
+            rospy.logwarn(f"[Visualization] Can't draw path for robot {trajectory.robot_name} since there is no path specified.")
             return image_matrix
         for waypoint in trajectory.path:
             current_val = image_matrix[waypoint.pixel_pos[0], waypoint.pixel_pos[1]]
@@ -97,7 +97,7 @@ class Visualization():
         if image_matrix is None:
             image_matrix = self.current_image_data
         if trajectory.goal_waypoint is None or trajectory.start_waypoint is None:
-            rospy.logwarn(f"[Visualization] Can't draw start and stop positions for planner {trajectory.planner_id} since they are None")
+            rospy.logwarn(f"[Visualization] Can't draw start and stop positions for planner {trajectory.robot_name} since they are None")
             return image_matrix
         color = self.generate_distinct_colors(number_of_agents, trajectory.planner_id)
         image_matrix[trajectory.goal_waypoint.pixel_position.x, trajectory.goal_waypoint.pixel_position.y] = color

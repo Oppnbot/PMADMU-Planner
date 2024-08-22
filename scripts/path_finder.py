@@ -74,7 +74,7 @@ class Waypoint():
 
 
 class PathFinder:
-    def __init__(self, robot_name : str = "unknown"):
+    def __init__(self, robot_name : str = "unknown", robot_id : int = -1):
         # -------- CONFIG START --------
         self.static_time_tolerance: float = 4.0     # [s] estimation of how long the robot needs to travel between two grid spaces. will add a static length to the "snakes"
         self.dynamic_time_tolerance : float = 1.5   # [s] estimation of motion uncertainty. lets "snakes" grow over time
@@ -90,6 +90,7 @@ class PathFinder:
         # -------- CONFIG END --------
 
         self.robot_name : str = robot_name
+        self.robot_id : int = robot_id
         
         self.robot_pose : Pose | None = None
         self.static_obstacles : OccupancyGrid | None = None
@@ -395,7 +396,8 @@ class PathFinder:
         #fb_visualizer.draw_timings(timings, bloated_static_obstacles, start_pos, goal_pos, trajectory_data.waypoints)
         
         trajectory : Trajectory = Trajectory()
-        trajectory.planner_id = self.robot_name
+        trajectory.robot_name = self.robot_name
+        trajectory.planner_id = self.robot_id
         trajectory.goal_waypoint = goal_waypoint.convert_to_msg()
         trajectory.start_waypoint = start_waypoint.convert_to_msg()
         path_msgs : list[WaypointMsg] = [waypoint.convert_to_msg() for waypoint in waypoints]
