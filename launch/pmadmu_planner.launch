@@ -7,13 +7,13 @@
     <arg name="robot3_name" default="mur620d"/>
 
     <!-- The leader position describes the center point of the formation. Format: [x-position, y-position, rotation] -->
-    <arg name="leader_position" default="[46.0, 46.0, 1.57]"/>
+    <arg name="leader_position" default="[46.0, 46.0, 0.0]"/>
 
     <!-- Offset from each robot to the center point. Format: [x-position, y-position, rotation] -->
-    <arg name="robot0_position" default="[-1.5, -1.5, 0.0]"/>
-    <arg name="robot1_position" default="[-1.5, +1.5, 0.0]"/>
-    <arg name="robot2_position" default="[+1.5, +1.5, 0.0]"/>
-    <arg name="robot3_position" default="[+1.5, -1.5, 0.0]"/>
+    <arg name="robot0_position" default="[-2.0, -2.0, 0.0]"/>
+    <arg name="robot1_position" default="[-2.0, +2.0, 0.0]"/>
+    <arg name="robot2_position" default="[+2.0, +2.0, 0.0]"/>
+    <arg name="robot3_position" default="[+2.0, -2.0, 0.0]"/>
 
     <node name="central_controller" pkg="pmadmu_planner" type="central_controller.py" output="screen">
         <param name="robot0_name" value="$(arg robot0_name)"/>

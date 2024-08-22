@@ -53,10 +53,10 @@ class CentralController:
 
             pose : Pose = Pose()
 
-            pose.position.x = leader_pose[0] + robot_position[0] * np.cos(leader_pose[2]) + robot_position[1] * np.sin(leader_pose[2])
+            pose.position.x = leader_pose[0] + robot_position[0] * np.cos(leader_pose[2]) - robot_position[1] * np.sin(leader_pose[2])
             pose.position.y = leader_pose[1] + robot_position[0] * np.sin(leader_pose[2]) + robot_position[1] * np.cos(leader_pose[2])
             pose.position.z = 0.0
-            pose.orientation.z = robot_position[2]
+            pose.orientation.z = leader_pose[1] + robot_position[2]
             goal_pose.goal = pose
             goal_pose.priority = index
             formation.goal_poses.append(goal_pose)
