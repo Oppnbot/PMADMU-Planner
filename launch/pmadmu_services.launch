@@ -1,0 +1,7 @@
+<?xml version="1.0" ?>
+<launch>
+    <node name="map_reader" pkg="pmadmu_planner" type="map_reader.py" output="screen" />
+    <node name="transformation_server" pkg="pmadmu_planner" type="transformation_server.py" output="screen" />
+    <node name="costmap_reader" pkg="pmadmu_planner" type="costmap_reader.py" output="screen" />
+    <node name="visualization" pkg="pmadmu_planner" type="visualization.py" output="screen"/>
+</launch>

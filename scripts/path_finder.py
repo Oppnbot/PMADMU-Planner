@@ -74,7 +74,7 @@ class Waypoint():
 
 
 class PathFinder:
-    def __init__(self, planner_id : int = 0):
+    def __init__(self, robot_name : str = "unknown"):
         # -------- CONFIG START --------
         self.static_time_tolerance: float = 4.0     # [s] estimation of how long the robot needs to travel between two grid spaces. will add a static length to the "snakes"
         self.dynamic_time_tolerance : float = 1.5   # [s] estimation of motion uncertainty. lets "snakes" grow over time
@@ -88,12 +88,13 @@ class PathFinder:
         self.kernel_size : int = 3 #!kernel size -> defines the safety margins for dynamic and static obstacles; grid_size * kernel_size = robot_size
         self.speed : float = 0.5
         # -------- CONFIG END --------
+
+        self.robot_name : str = robot_name
         
-        self.id: int = planner_id
         self.robot_pose : Pose | None = None
         self.static_obstacles : OccupancyGrid | None = None
-        rospy.Subscriber(f'/mir{self.id}/robot_pose', Pose, self.update_pose)
-        rospy.Subscriber(f'/mir{self.id}/mir_pose_simple', Pose, self.update_pose)
+        rospy.Subscriber(f'/{robot_name}/robot_pose', Pose, self.update_pose)
+        rospy.Subscriber(f'/{robot_name}/mir_pose_simple', Pose, self.update_pose)
         rospy.Subscriber('/pmadmu_planner/static_obstacles', OccupancyGrid, self.read_static_obstacles)
         self.status_publisher = rospy.Publisher('/pmadmu_planner/follower_status', FollowerFeedback, queue_size=10, latch=True)
         #self.trajectory_publisher : rospy.Publisher = rospy.Publisher('pmadmu_planner/trajectory', Trajectory, queue_size=10, latch=True)
@@ -134,9 +135,9 @@ class PathFinder:
                 if waypoint.occupied_until > max_occupied_until:
                     max_occupied_until = waypoint.occupied_until
             if min_occupied_from == float('inf'):
-                rospy.logwarn(f"[Planner {self.id}] min occupation time is infinite")
+                rospy.logwarn(f"[Planner {self.robot_name}] min occupation time is infinite")
             if max_occupied_until == 0:
-                rospy.logwarn(f"[Planner {self.id}] max occupation time is 0")
+                rospy.logwarn(f"[Planner {self.robot_name}] max occupation time is 0")
             new_waypoint : Waypoint = Waypoint(position, min_occupied_from, max_occupied_until)
             bloated_path.append(new_waypoint)
         return bloated_path
@@ -146,10 +147,10 @@ class PathFinder:
     def search_path(self, static_obstacles: np.ndarray, goal_pos: GoalPose, dynamic_obstacles: list[Trajectory] = []) -> Trajectory | None:
         iterations : int = 0
         while self.robot_pose is None:
-            rospy.logwarn(f"[Planner {self.id}] failed to plan path, waiting for robot position update. Retrying...")
+            rospy.logwarn(f"[Planner {self.robot_name}] failed to plan path, waiting for robot position update. Retrying...")
             rospy.sleep(0.25)
             iterations += 1
-        rospy.loginfo(f"[Planner {self.id}] Starting Trajectory Search")
+        rospy.loginfo(f"[Planner {self.robot_name}] Starting Trajectory Search")
 
         start_time = time.time()
 
@@ -158,19 +159,19 @@ class PathFinder:
 
         w2p_response : TransformWorldToPixelResponse = transform_world_to_pixel([self.robot_pose.position.x], [self.robot_pose.position.y])
         if len(w2p_response.x_pixel) == 0 or len(w2p_response.y_pixel) == 0:
-            rospy.logwarn(f"[Planner {self.id}] failed to plan path, since robot starting position couldn't be converted to pixel space.")
+            rospy.logwarn(f"[Planner {self.robot_name}] failed to plan path, since robot starting position couldn't be converted to pixel space.")
             return None
         robot_start_pixel_pos : tuple[int, int] = (w2p_response.x_pixel[0], w2p_response.y_pixel[0])
         start_waypoint : Waypoint = Waypoint(robot_start_pixel_pos, 0.0)
         
-        #cv2.imshow(f"static obst {self.id}", static_obstacles)
+        #cv2.imshow(f"static obst {self.robot_name}", static_obstacles)
         #cv2.waitKey()
         static_obstacles[robot_start_pixel_pos[0], robot_start_pixel_pos[1]] = 1 #? this may prevent robots from being stuck in an obstacles inflation zone
 
         # Get goal position and transform it to pixel space
         w2p_response : TransformWorldToPixelResponse = transform_world_to_pixel([goal_pos.goal.position.x], [goal_pos.goal.position.y])
         if len(w2p_response.x_pixel) == 0 or len(w2p_response.y_pixel) == 0:
-            rospy.logwarn(f"[Planner {self.id}] failed to plan path, since its goal position couldn't be converted to pixel space.")
+            rospy.logwarn(f"[Planner {self.robot_name}] failed to plan path, since its goal position couldn't be converted to pixel space.")
             return None
         robot_goal_pixel_pos : tuple[int, int] = (w2p_response.x_pixel[0], w2p_response.y_pixel[0])
         goal_waypoint : Waypoint = Waypoint(robot_goal_pixel_pos, float('inf'))
@@ -191,7 +192,7 @@ class PathFinder:
             for waypoint in bloated_dynamic_obstacles:
                 occupied_positions.setdefault(waypoint.pixel_pos, []).append(waypoint)
         bloating_time_done = time.time() 
-        rospy.loginfo(f"[Planner {self.id}] inflated paths. this took {bloating_time_done - bloating_time_start:.6f}s")
+        rospy.loginfo(f"[Planner {self.robot_name}] inflated paths. this took {bloating_time_done - bloating_time_start:.6f}s")
 
         heap: list[tuple[float, Waypoint]] = [(0, start_waypoint)]
 
@@ -201,7 +202,7 @@ class PathFinder:
         kernel = np.ones((self.kernel_size, self.kernel_size),np.uint8) #type: ignore
         bloated_static_obstacles : np.ndarray = cv2.erode(static_obstacles, kernel) #-> erosion of free space = dilation of obstacles
         dilation_time_done = time.time()
-        rospy.loginfo(f"[Planner {self.id}] Dilated map. This took {dilation_time_done-dilation_time_start:.6f}s")
+        rospy.loginfo(f"[Planner {self.robot_name}] Dilated map. This took {dilation_time_done-dilation_time_start:.6f}s")
 
         rows: int = bloated_static_obstacles.shape[0]
         cols: int = bloated_static_obstacles.shape[1]
@@ -212,7 +213,7 @@ class PathFinder:
         # Adjust starting positions
         if start_waypoint in bloated_dynamic_obstacles:
             timings[robot_start_pixel_pos] = 100
-            rospy.logerr(f"[Planner {self.id}]: Other Robot driving through my starting pos!")
+            rospy.logerr(f"[Planner {self.robot_name}]: Other Robot driving through my starting pos!")
 
 
         
@@ -239,9 +240,9 @@ class PathFinder:
             iterations += 1
             current_cost, current_waypoint = heapq.heappop(heap)
             if iterations % 10_000 == 0:
-                rospy.loginfo(f"[Planner {self.id}] {iterations} iterations done!")
+                rospy.loginfo(f"[Planner {self.robot_name}] {iterations} iterations done!")
             if iterations > max_iterations:
-                rospy.logwarn(f"[Planner {self.id}] breaking because algorithm reached max iterations {max_iterations}")
+                rospy.logwarn(f"[Planner {self.robot_name}] breaking because algorithm reached max iterations {max_iterations}")
                 return None
             
             #if self.dynamic_visualization:
@@ -258,10 +259,10 @@ class PathFinder:
                         current_wp_occ_until = float('inf')
                     # does the occupation timeframe overlap with the occupation of a higher prio robot?
                     if current_waypoint.occupied_from < waypoint.occupied_from < current_wp_occ_until or current_waypoint.occupied_from < waypoint.occupied_until < current_wp_occ_until:
-                        #rospy.logwarn(f"robot {self.id} would collide at position {current_waypoint.pixel_pos} after {current_cost}s while waiting. it is occupied between {waypoint.occupied_from}s -> {waypoint.occupied_until}s ")
+                        #rospy.logwarn(f"robot {self.robot_name} would collide at position {current_waypoint.pixel_pos} after {current_cost}s while waiting. it is occupied between {waypoint.occupied_from}s -> {waypoint.occupied_until}s ")
                         is_occupied = True
                         if current_waypoint == start_waypoint:
-                            rospy.logerr(f"[Planner {self.id}] can't adjust waiting position since robot already waiting at its starting pos")
+                            rospy.logerr(f"[Planner {self.robot_name}] can't adjust waiting position since robot already waiting at its starting pos")
                             return None
                         if current_waypoint.previous_waypoint is not None:
                             #rospy.loginfo(f"will wait at {current_waypoint.previous_waypoint.pixel_pos} until {waypoint.occupied_until}")
@@ -270,13 +271,13 @@ class PathFinder:
                             timings[current_waypoint.pixel_pos[0], current_waypoint.pixel_pos[1]] = -1
                             heapq.heappush(heap, (waypoint.occupied_until, current_waypoint.previous_waypoint))
                         else:
-                            rospy.logwarn(f"[Planner {self.id}] will collide at current position {current_waypoint.pixel_pos} but previous waypoint is none!")
+                            rospy.logwarn(f"[Planner {self.robot_name}] will collide at current position {current_waypoint.pixel_pos} but previous waypoint is none!")
                         break
                 if is_occupied:
                     continue
 
             if current_waypoint == goal_waypoint:
-                rospy.loginfo(f"[Planner {self.id}] Reached the goal after {iterations} iterations")
+                rospy.loginfo(f"[Planner {self.robot_name}] Reached the goal after {iterations} iterations")
                 goal_waypoint = current_waypoint
                 break
 
@@ -311,16 +312,16 @@ class PathFinder:
                         new_waypoint : Waypoint = Waypoint((x,y), driving_cost, previous_waypoint=current_waypoint)
                         heapq.heappush(heap, (driving_cost, new_waypoint))
             if not heap:
-                rospy.logerr(f"[Planner {self.id}] stopping because heap queue is empty")
+                rospy.logerr(f"[Planner {self.robot_name}] stopping because heap queue is empty")
                 #feedback : FollowerFeedback = FollowerFeedback()
                 #feedback.robot_id = self.id
                 #feedback.status = feedback.PLANNING_FAILED
                 #self.status_publisher.publish(feedback)
                 return None
         
-        rospy.loginfo(f"[Planner {self.id}] stopped after a total of {iterations} iterations")
+        rospy.loginfo(f"[Planner {self.robot_name}] stopped after a total of {iterations} iterations")
         loop_end_time = time.time()
-        rospy.loginfo(f"[Planner {self.id}] planned path! Dijkstras main loop took {loop_end_time-loop_time_start:.6f}s")
+        rospy.loginfo(f"[Planner {self.robot_name}] planned path! Dijkstras main loop took {loop_end_time-loop_time_start:.6f}s")
         
 
         #* --- Reconstruct Path ---
@@ -342,10 +343,10 @@ class PathFinder:
 
         expected_waypoints : int = max(abs(robot_goal_pixel_pos[0]-robot_start_pixel_pos[0]), abs(robot_goal_pixel_pos[1]-robot_start_pixel_pos[1]))
         if len(waypoints) < expected_waypoints:
-            rospy.logwarn(f"[Planner {self.id}] Path seems to be too short, this may be a result of an invalid path. got {len(waypoints)}, expected {expected_waypoints}; Discarding solution and trying to replan...")
+            rospy.logwarn(f"[Planner {self.robot_name}] Path seems to be too short, this may be a result of an invalid path. got {len(waypoints)}, expected {expected_waypoints}; Discarding solution and trying to replan...")
             return None
-        rospy.loginfo(f"[Planner {self.id}] Found a path. This took {pathfind_done_time-pathfind_start_time:.6f}s")
-        rospy.loginfo(f"[Planner {self.id}] Shortest path consists of {len(waypoints)} nodes with a cost of {timings[robot_goal_pixel_pos[0], robot_goal_pixel_pos[1]]}")
+        rospy.loginfo(f"[Planner {self.robot_name}] Found a path. This took {pathfind_done_time-pathfind_start_time:.6f}s")
+        rospy.loginfo(f"[Planner {self.robot_name}] Shortest path consists of {len(waypoints)} nodes with a cost of {timings[robot_goal_pixel_pos[0], robot_goal_pixel_pos[1]]}")
 
         # Transform Path from Pixel-Space to World-Space for visualization and path following
         trafo_start_time = time.time()
@@ -388,13 +389,13 @@ class PathFinder:
         
 
         trafo_end_time = time.time()
-        rospy.loginfo(f"[Planner {self.id}] Transformed pixel data to world coordinates. This took {trafo_end_time-trafo_start_time:.6f}s")
+        rospy.loginfo(f"[Planner {self.robot_name}] Transformed pixel data to world coordinates. This took {trafo_end_time-trafo_start_time:.6f}s")
         
         # Visualization
         #fb_visualizer.draw_timings(timings, bloated_static_obstacles, start_pos, goal_pos, trajectory_data.waypoints)
         
         trajectory : Trajectory = Trajectory()
-        trajectory.planner_id = self.id
+        trajectory.planner_id = self.robot_name
         trajectory.goal_waypoint = goal_waypoint.convert_to_msg()
         trajectory.start_waypoint = start_waypoint.convert_to_msg()
         path_msgs : list[WaypointMsg] = [waypoint.convert_to_msg() for waypoint in waypoints]
@@ -404,6 +405,6 @@ class PathFinder:
         #self.trajectory_publisher.publish(trajectory)
 
         end_time = time.time()
-        rospy.loginfo(f"[Planner {self.id}] Done! Took {end_time-start_time:.6f}s in total for this planner.")
-        rospy.loginfo(f"[Planner {self.id}] - - - - - - - - -")
+        rospy.loginfo(f"[Planner {self.robot_name}] Done! Took {end_time-start_time:.6f}s in total for this planner.")
+        rospy.loginfo(f"[Planner {self.robot_name}] - - - - - - - - -")
         return trajectory

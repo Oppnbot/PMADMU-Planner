@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import ast
 import rospy
 import numpy as np
 import re
@@ -17,24 +18,55 @@ class CentralController:
     def __init__(self) -> None:
         rospy.init_node('CentralController')
 
-        rospy.loginfo("[CController] Waiting for Services")
-        rospy.wait_for_service('/pmadmu_planner/pixel_to_world')
-        rospy.wait_for_service('/pmadmu_planner/world_to_pixel')
-        rospy.loginfo("[CController] transformation services is running!")
+        rospy.loginfo("[CController] Waiting for Services...")
+        #rospy.wait_for_service('/pmadmu_planner/pixel_to_world')
+        #rospy.wait_for_service('/pmadmu_planner/world_to_pixel')
+        rospy.loginfo("[CController] transformation services are running!")
+        self.unique_mir_ids : list[str] = []
+        
+        self.unique_mir_ids.append(str(rospy.get_param('~robot0_name')))
+        self.unique_mir_ids.append(str(rospy.get_param('~robot1_name')))
+        self.unique_mir_ids.append(str(rospy.get_param('~robot2_name')))
+        self.unique_mir_ids.append(str(rospy.get_param('~robot3_name')))
 
-        topics = rospy.get_published_topics()
-        self.unique_mir_ids : set[int] = set()
-        pattern = r"/mir(\d+)/"
-        for topic in topics:
-            match_string = re.search(pattern, str(topic))
-            if match_string:
-                robot_id = int(match_string.group(1))
-                self.unique_mir_ids.add(robot_id)
+        leader_pose_str : str = str(rospy.get_param(f'~leader_position'))
+        leader_pose = ast.literal_eval(leader_pose_str)
+        rospy.loginfo(f"Received the leader pose at {leader_pose}")
+        
+        self.formation : Formation = Formation()
+        self.formation.goal_poses = []
+        #self.goal_positions : list[tuple[float, float, float]] = []
+        #
 
         rospy.loginfo(f"[CController] Registered {len(self.unique_mir_ids)} mir bots, with the IDs: {self.unique_mir_ids}")
 
+        
+        for index, robot_name in enumerate(self.unique_mir_ids):
+            position_str : str = str(rospy.get_param(f'~robot{index}_position'))
 
-        self.path_finders : dict[int, PathFinder] = {id: PathFinder(id) for id in self.unique_mir_ids}
+            robot_position = ast.literal_eval(position_str)
+            rospy.loginfo(f"Received a relative goal pose for {robot_name} at: {robot_position}")
+
+            goal_pose : GoalPose = GoalPose()
+            goal_pose.planner_id = index
+
+            pose : Pose = Pose()
+
+
+
+            pose.position.x = leader_pose[0] + robot_position[0] * np.cos(leader_pose[2]) + robot_position[1] * np.sin(leader_pose[2])
+            pose.position.y = leader_pose[1] + robot_position[0] * np.sin(leader_pose[2]) + robot_position[1] * np.cos(leader_pose[2])
+            pose.position.z = 0.0
+            pose.orientation.z = robot_position[2]
+
+            rospy.logerr(f"x: {pose.position.x}/ y: {pose.position.y}")
+
+            goal_pose.goal = pose
+            goal_pose.priority = index
+            self.formation.goal_poses.append(goal_pose)
+
+
+        self.path_finders : dict[str, PathFinder] = {id: PathFinder(id) for id in self.unique_mir_ids}
         #self.path_followers:dict[int, PathFollower] = {id: PathFollower(id) for id in self.unique_mir_ids}
         self.current_formation : Formation | None = None
         self.grid : np.ndarray | None = None

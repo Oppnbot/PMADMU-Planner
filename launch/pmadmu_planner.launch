@@ -1,0 +1,31 @@
+<?xml version="1.0" ?>
+<launch>
+    <!-- Robot names as arguments -->
+    <arg name="robot0_name" default="mur620a"/>
+    <arg name="robot1_name" default="mur620b"/>
+    <arg name="robot2_name" default="mur620c"/>
+    <arg name="robot3_name" default="mur620d"/>
+
+    <!-- The leader position describes the center point of the formation. Format: [x-position, y-position, rotation] -->
+    <arg name="leader_position" default="[46.0, 46.0, 1.57]"/>
+
+    <!-- Offset from each robot to the center point. Format: [x-position, y-position, rotation] -->
+    <arg name="robot0_position" default="[-2.25, 0.0, 0.0]"/>
+    <arg name="robot1_position" default="[-0.75, 0.0, 0.0]"/>
+    <arg name="robot2_position" default="[+0.75, 0.0, 0.0]"/>
+    <arg name="robot3_position" default="[+2.25, 0.0, 0.0]"/>
+
+    <node name="central_controller" pkg="pmadmu_planner" type="central_controller.py" output="screen">
+        <param name="robot0_name" value="$(arg robot0_name)"/>
+        <param name="robot1_name" value="$(arg robot1_name)"/>
+        <param name="robot2_name" value="$(arg robot2_name)"/>
+        <param name="robot3_name" value="$(arg robot3_name)"/>
+        
+        <param name="leader_position" value="$(arg leader_position)"/>
+
+        <param name="robot0_position" value="$(arg robot0_position)"/>
+        <param name="robot1_position" value="$(arg robot1_position)"/>
+        <param name="robot2_position" value="$(arg robot2_position)"/>
+        <param name="robot3_position" value="$(arg robot3_position)"/>
+    </node>
+</launch>
