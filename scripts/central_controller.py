@@ -19,34 +19,37 @@ class CentralController:
         rospy.init_node('CentralController')
 
         rospy.loginfo("[CController] Waiting for Services...")
-        #rospy.wait_for_service('/pmadmu_planner/pixel_to_world')
-        #rospy.wait_for_service('/pmadmu_planner/world_to_pixel')
+        rospy.wait_for_service('/pmadmu_planner/pixel_to_world')
+        rospy.wait_for_service('/pmadmu_planner/world_to_pixel')
         rospy.loginfo("[CController] transformation services are running!")
-        self.unique_mir_ids : list[str] = []
-        
-        self.unique_mir_ids.append(str(rospy.get_param('~robot0_name')))
-        self.unique_mir_ids.append(str(rospy.get_param('~robot1_name')))
-        self.unique_mir_ids.append(str(rospy.get_param('~robot2_name')))
-        self.unique_mir_ids.append(str(rospy.get_param('~robot3_name')))
-        rospy.loginfo(f"[CController] Registered {len(self.unique_mir_ids)} mir bots, with the IDs: {self.unique_mir_ids}")
 
-        leader_pose_str : str = str(rospy.get_param(f'~leader_position'))
-        leader_pose = ast.literal_eval(leader_pose_str)
+        robot_names : str = str(rospy.get_param('~robot_names'))
+        self.unique_mir_ids : list[str] = robot_names.split(',')
+
+        leader_position : str = str(rospy.get_param('~leader_position'))
+        leader_pose : list[float] = ast.literal_eval(leader_position)
+        if len(leader_pose) != 3:
+            rospy.logerr(f"leader_position is invalid. Must contain 3 Values for [x, y, rotation] but contains {len(leader_pose)}. Please adjust the launch file!")
+            return None
         rospy.loginfo(f"Received the leader pose at {leader_pose}")
-        
+
+        robot_positions : str = str(rospy.get_param('~robot_positions'))
+        robot_positions_list = ast.literal_eval(robot_positions)
+
+
         formation : Formation = Formation()
         formation.goal_poses = []
-        #self.goal_positions : list[tuple[float, float, float]] = []
-        #
 
+        if len(self.unique_mir_ids) != len(robot_positions_list):
+            rospy.logerr(f"There must be the same number of robots ({len(self.unique_mir_ids)}) and positions ({len(robot_positions_list)}). Please adjust the launch file!")
+            return None
         
 
-        
         for index, robot_name in enumerate(self.unique_mir_ids):
-            position_str : str = str(rospy.get_param(f'~robot{index}_position'))
-
-            robot_position = ast.literal_eval(position_str)
-            rospy.loginfo(f"Received a relative goal pose for {robot_name} at: {robot_position}")
+            robot_position : list[float] = robot_positions_list[index]
+            if len(robot_position) != 3:
+                rospy.logerr(f"Position for {robot_name} is invalid. Must contain 3 Values for [x, y, rotation] but contains {len(robot_name)}. Please adjust the launch file!")
+                return None
 
             goal_pose : GoalPose = GoalPose()
             goal_pose.robot_name = robot_name
@@ -60,6 +63,7 @@ class CentralController:
             goal_pose.goal = pose
             goal_pose.priority = index
             formation.goal_poses.append(goal_pose)
+            rospy.loginfo(f"{robot_name} received a goal position. relative: {robot_position} -> absolute: [{pose.position.x}, {pose.position.y}]; angle {pose.orientation.z}")
 
 
         self.path_finders : dict[str, PathFinder] = {name: PathFinder(robot_name=name, robot_id=index) for index, name in enumerate(self.unique_mir_ids)}
