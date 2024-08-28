@@ -1,0 +1,10 @@
+uint8 robot_id
+uint8 status
+
+uint8 IDLE=0
+uint8 FOLLOWING=1
+uint8 DONE=2
+uint8 LOST_WAYPOINT=3
+uint8 OUTSIDE_RESERVED_AREA=4
+uint8 PATH_BLOCKED=5
+uint8 PLANNING_FAILED = 6
