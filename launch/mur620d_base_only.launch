@@ -1,0 +1,10 @@
+<launch>
+    <!-- Defining arguments for the mur launch --> 
+    <arg name="launch_ur_l" default="false"/>
+    <arg name="launch_ur_r" default="false"/>
+
+    <include file="$(find mur_launch_hardware)/launch/mur620d.launch">
+        <arg name="launch_ur_l" value="$(arg launch_ur_l)"/>
+        <arg name="launch_ur_r" value="$(arg launch_ur_r)"/>
+    </include>
+</launch>
