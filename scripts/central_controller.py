@@ -11,7 +11,7 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from path_finder import PathFinder
 from pmadmu_planner.msg import Formation, GoalPose, Trajectory, Trajectories, FollowerFeedback
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, PoseStamped
 
 
 class CentralController:
@@ -26,44 +26,13 @@ class CentralController:
         robot_names : str = str(rospy.get_param('~robot_names'))
         self.unique_mir_ids : list[str] = robot_names.split(',')
 
-        leader_position : str = str(rospy.get_param('~leader_position'))
-        leader_pose : list[float] = ast.literal_eval(leader_position)
-        if len(leader_pose) != 3:
-            rospy.logerr(f"leader_position is invalid. Must contain 3 Values for [x, y, rotation] but contains {len(leader_pose)}. Please adjust the launch file!")
-            return None
-        rospy.loginfo(f"Received the leader pose at {leader_pose}")
-
-        robot_positions : str = str(rospy.get_param('~robot_positions'))
-        robot_positions_list = ast.literal_eval(robot_positions)
-
-
-        formation : Formation = Formation()
-        formation.goal_poses = []
-
-        if len(self.unique_mir_ids) != len(robot_positions_list):
-            rospy.logerr(f"There must be the same number of robots ({len(self.unique_mir_ids)}) and positions ({len(robot_positions_list)}). Please adjust the launch file!")
-            return None
-        
-
-        for index, robot_name in enumerate(self.unique_mir_ids):
-            robot_position : list[float] = robot_positions_list[index]
-            if len(robot_position) != 3:
-                rospy.logerr(f"Position for {robot_name} is invalid. Must contain 3 Values for [x, y, rotation] but contains {len(robot_name)}. Please adjust the launch file!")
-                return None
-
-            goal_pose : GoalPose = GoalPose()
-            goal_pose.robot_name = robot_name
-
-            pose : Pose = Pose()
-
-            pose.position.x = leader_pose[0] + robot_position[0] * np.cos(leader_pose[2]) - robot_position[1] * np.sin(leader_pose[2])
-            pose.position.y = leader_pose[1] + robot_position[0] * np.sin(leader_pose[2]) + robot_position[1] * np.cos(leader_pose[2])
-            pose.position.z = 0.0
-            pose.orientation.z = leader_pose[1] + robot_position[2]
-            goal_pose.goal = pose
-            goal_pose.priority = index
-            formation.goal_poses.append(goal_pose)
-            rospy.loginfo(f"{robot_name} received a goal position. relative: {robot_position} -> absolute: [{pose.position.x}, {pose.position.y}]; angle {pose.orientation.z}")
+        #? do we still need this? -> leader pose via rviz
+        #leader_position : str = str(rospy.get_param('~leader_position'))
+        #leader_pose : list[float] = ast.literal_eval(leader_position)
+        #if len(leader_pose) != 3:
+        #    rospy.logerr(f"leader_position is invalid. Must contain 3 Values for [x, y, rotation] but contains {len(leader_pose)}. Please adjust the launch file!")
+        #    return None
+        #rospy.loginfo(f"Received the leader pose at {leader_pose}")
 
 
         self.path_finders : dict[str, PathFinder] = {name: PathFinder(robot_name=name, robot_id=index) for index, name in enumerate(self.unique_mir_ids)}
@@ -74,13 +43,50 @@ class CentralController:
         
         self.map_subscriber : rospy.Subscriber = rospy.Subscriber("/pmadmu_planner/map", Image, self.map_callback)
         self.follower_feedback_subscriber : rospy.Subscriber = rospy.Subscriber('/pmadmu_planner/follower_status', FollowerFeedback, self.follower_feedback)
+        self.rviz_goal_subscriber : rospy.Subscriber = rospy.Subscriber("/pmadmu_planner/rviz_goal", PoseStamped, self.receive_goal_pos)
+
         self.trajectory_publisher : rospy.Publisher = rospy.Publisher('/pmadmu_planner/trajectories', Trajectories, queue_size=10, latch=True)
         self.formation_subscriber : rospy.Subscriber = rospy.Subscriber("/pmadmu_planner/formation", Formation, self.build_formation)
 
 
         # Send formation request; remove this if you want to trigger the planning process by external nodes
-        formation_publisher : rospy.Publisher = rospy.Publisher("/pmadmu_planner/formation", Formation, queue_size=10, latch=True)
-        formation_publisher.publish(formation)
+        self.formation_publisher : rospy.Publisher = rospy.Publisher("/pmadmu_planner/formation", Formation, queue_size=10, latch=True)
+        
+        return None
+    
+
+    def receive_goal_pos(self, goal: PoseStamped) -> None:
+        
+
+        rospy.logerr(f"received a new goal pose at {goal.pose.position.x} {goal.pose.position.y}")
+
+        robot_positions : str = str(rospy.get_param('~robot_positions'))
+        robot_positions_list = ast.literal_eval(robot_positions)
+
+        formation : Formation = Formation()
+        formation.goal_poses = []
+
+        if len(self.unique_mir_ids) != len(robot_positions_list):
+            rospy.logerr(f"There must be the same number of robots ({len(self.unique_mir_ids)}) and positions ({len(robot_positions_list)}). Please adjust the launch file!")
+            return None
+        
+        for index, robot_name in enumerate(self.unique_mir_ids):
+            robot_position : list[float] = robot_positions_list[index]
+            if len(robot_position) != 3:
+                rospy.logerr(f"Position for {robot_name} is invalid. Must contain 3 Values for [x, y, rotation] but contains {len(robot_name)}. Please adjust the launch file!")
+                return None
+            goal_pose : GoalPose = GoalPose()
+            goal_pose.robot_name = robot_name
+            pose : Pose = Pose()
+            pose.position.x = goal.pose.position.x + robot_position[0] * np.cos(goal.pose.orientation.z) - robot_position[1] * np.sin(goal.pose.orientation.z)
+            pose.position.y = goal.pose.position.y + robot_position[0] * np.sin(goal.pose.orientation.z) + robot_position[1] * np.cos(goal.pose.orientation.z)
+            pose.position.z = 0.0
+            pose.orientation.z = goal.pose.orientation.z + robot_position[2]
+            goal_pose.goal = pose
+            goal_pose.priority = index
+            formation.goal_poses.append(goal_pose)
+            rospy.loginfo(f"{robot_name} received a goal position. relative: {robot_position} -> absolute: [{pose.position.x}, {pose.position.y}]; angle {pose.orientation.z}")
+        self.formation_publisher.publish(formation)
         return None
     
 
