@@ -9,17 +9,25 @@ import cv2
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from pmadmu_planner.msg import GridMap
+from dynamic_reconfigure.server import Server
+from pmadmu_planner.cfg import MapReaderConfig
 
 
 class MapReader:
-    resolution : float = 0.6  #0.6 # [m] per grid cell
-    show_debug_images : bool = False
-    show_debug_prints : bool = False
+
 
     def __init__(self) -> None:
         self.input_map: OccupancyGrid | None = None
         self.cvbridge : CvBridge = CvBridge()
+
+        #! you can change these parameters via rqt or the FollowerConfig.cfg file
+        self.resolution : float = 0.6  #0.6 # [m] per grid cell
+        self.show_debug_images : bool = False
+        self.show_debug_prints : bool = False
+
         rospy.init_node('map_reader')
+
+        config_server = Server(MapReaderConfig, self.config_change)
         
         rospy.Subscriber("/pmadmu_planner/merged_costmap", OccupancyGrid, self.read_map)
         #rospy.Subscriber('/map', OccupancyGrid, self.read_map)
@@ -30,7 +38,15 @@ class MapReader:
         rospy.spin()
         return None
     
+        
+    def config_change(self, config, level):
+        self.resolution = config.resolution
+        self.show_debug_images = config.show_debug_images
+        self.show_debug_prints = config.show_debug_prints
+        rospy.loginfo(f"Config was changed. May need a restart to apply changes")
+        return config
 
+    
     def read_map(self, map_data : OccupancyGrid) -> None:
         if self.show_debug_prints:
             rospy.loginfo("got new data")

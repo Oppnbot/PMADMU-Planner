@@ -12,6 +12,8 @@ from cv_bridge import CvBridge
 from path_finder import PathFinder
 from pmadmu_planner.msg import Formation, GoalPose, Trajectory, Trajectories, FollowerFeedback
 from geometry_msgs.msg import Pose, PoseStamped
+from dynamic_reconfigure.server import Server
+from pmadmu_planner.cfg import PathFinderConfig
 
 
 class CentralController:
@@ -35,6 +37,16 @@ class CentralController:
         #rospy.loginfo(f"Received the leader pose at {leader_pose}")
 
 
+
+        #rate : rospy.Rate = rospy.Rate(1.0)
+        #while True:
+        #    robot_name = rospy.get_param('/robot_name', 'this robot does not exist. your config doesnt work. idiot!')
+        #    max_speed = rospy.get_param('/max_speed', -0.0)
+        #    rospy.logerr(f"Robot Name: {robot_name}")
+        #    rospy.logerr(f"Max Speed: {max_speed}")
+        #    rate.sleep()
+
+
         self.path_finders : dict[str, PathFinder] = {name: PathFinder(robot_name=name, robot_id=index) for index, name in enumerate(self.unique_mir_ids)}
         #self.path_followers:dict[int, PathFollower] = {id: PathFollower(id) for id in self.unique_mir_ids}
         self.current_formation : Formation | None = None
@@ -48,17 +60,21 @@ class CentralController:
         self.trajectory_publisher : rospy.Publisher = rospy.Publisher('/pmadmu_planner/trajectories', Trajectories, queue_size=10, latch=True)
         self.formation_subscriber : rospy.Subscriber = rospy.Subscriber("/pmadmu_planner/formation", Formation, self.build_formation)
 
-
         # Send formation request; remove this if you want to trigger the planning process by external nodes
         self.formation_publisher : rospy.Publisher = rospy.Publisher("/pmadmu_planner/formation", Formation, queue_size=10, latch=True)
-        
+        config_server = Server(PathFinderConfig, self.config_change)
         return None
     
 
-    def receive_goal_pos(self, goal: PoseStamped) -> None:
-        
+    def config_change(self, config, level):
+        rospy.loginfo("[CController] Config was changed, updating path finders...")
+        for path_finder in self.path_finders.values():
+            path_finder.config_change(config, level)
+        return config
+    
 
-        rospy.logerr(f"received a new goal pose at {goal.pose.position.x} {goal.pose.position.y}")
+    def receive_goal_pos(self, goal: PoseStamped) -> None:
+        rospy.logerr(f"[CController] received a new goal pose at {goal.pose.position.x} {goal.pose.position.y}")
 
         robot_positions : str = str(rospy.get_param('~robot_positions'))
         robot_positions_list = ast.literal_eval(robot_positions)
@@ -67,13 +83,13 @@ class CentralController:
         formation.goal_poses = []
 
         if len(self.unique_mir_ids) != len(robot_positions_list):
-            rospy.logerr(f"There must be the same number of robots ({len(self.unique_mir_ids)}) and positions ({len(robot_positions_list)}). Please adjust the launch file!")
+            rospy.logerr(f"[CController] There must be the same number of robots ({len(self.unique_mir_ids)}) and positions ({len(robot_positions_list)}). Please adjust the launch file!")
             return None
         
         for index, robot_name in enumerate(self.unique_mir_ids):
             robot_position : list[float] = robot_positions_list[index]
             if len(robot_position) != 3:
-                rospy.logerr(f"Position for {robot_name} is invalid. Must contain 3 Values for [x, y, rotation] but contains {len(robot_name)}. Please adjust the launch file!")
+                rospy.logerr(f"[CController] Position for {robot_name} is invalid. Must contain 3 Values for [x, y, rotation] but contains {len(robot_name)}. Please adjust the launch file!")
                 return None
             goal_pose : GoalPose = GoalPose()
             goal_pose.robot_name = robot_name
@@ -85,7 +101,7 @@ class CentralController:
             goal_pose.goal = pose
             goal_pose.priority = index
             formation.goal_poses.append(goal_pose)
-            rospy.loginfo(f"{robot_name} received a goal position. relative: {robot_position} -> absolute: [{pose.position.x}, {pose.position.y}]; angle {pose.orientation.z}")
+            rospy.loginfo(f"[CController] {robot_name} received a goal position. relative: {robot_position} -> absolute: [{pose.position.x}, {pose.position.y}]; angle {pose.orientation.z}")
         self.formation_publisher.publish(formation)
         return None
     

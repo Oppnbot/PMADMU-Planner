@@ -17,7 +17,8 @@ from pmadmu_planner.srv import TransformWorldToPixel, TransformWorldToPixelRespo
 from geometry_msgs.msg import Twist, PoseStamped, Point, Pose
 from pmadmu_planner.msg import Trajectory, Trajectories, Waypoint, FollowerFeedback
 from tf.transformations import euler_from_quaternion
-
+from dynamic_reconfigure.server import Server
+from pmadmu_planner.cfg import FollowerConfig
 
 class PathFollower:
     def __init__(self, robot_id:int) -> None:
@@ -30,6 +31,7 @@ class PathFollower:
         self.costmap : OccupancyGrid | None = None
 
         # ---- Config Zone ----
+        #! you can change these parameters via rqt or the FollowerConfig.cfg file
         self.lookahead_distance : float = 1.2   # [m] higher distance -> smoother curves when driving but might leave path.
         self.lookahead_time : float = 10        # [s] higher value -> earlier replanning when a collision with a previously unknown obstacle is inbound. please note that it may take a few seconds to update the obstacles, so >= 5s is advised
         self.max_linear_speed : float = 1.0  #0.15   # [m/s] max driving speed
@@ -43,9 +45,11 @@ class PathFollower:
         self.slowdown_y : float = 1.4 # [m] defines a boxes y-axis that causes slowdowns to the robots speed if objects enter it
         self.stopping_x: float = 1.50 # [m]defines a box that x-axis causes a stop to the robots speed if objects enter it
         self.stopping_y: float = 0.90 # [m] defines a box that y-axis causes a stop to the robots speed if objects enter it
-        self.robot_size_x : float = 1.25 # [m] robot size along x-axis. will igonore laser scans values within this range
-        self.robot_size_y : float = 0.85 # [m] robot size along y-axis. will igonore laser scans values within this range
+        self.robot_size_x : float = 1.25 # [m] robot size along x-axis. will ignore laser scans values within this range
+        self.robot_size_y : float = 0.85 # [m] robot size along y-axis. will ignore laser scans values within this range
         # ---- End Config ----
+
+        config_server = Server(FollowerConfig, self.config_change)
 
         self.stop_moving : bool = False
         
@@ -89,6 +93,32 @@ class PathFollower:
         rospy.spin()
         self.csv_file.close()
         return None
+    
+
+    def config_change(self, config, level):
+        rospy.loginfo("Config was changed, adjusting parameters...")
+        self.lookahead_distance = config.lookahead_distance
+        self.lookahead_time = config.lookahead_time
+        self.max_linear_speed = config.max_linear_speed
+        self.max_angular_speed = config.max_angular_speed
+
+        self.goal_tolerance = config.goal_tolerance
+        self.rotation_tolerance = config.rotation_tolerance
+        self.slowdown_angle = config.slowdown_angle
+
+        self.slowdown_x = config.slowdown_x
+        self.slowdown_y = config.slowdown_y
+        self.stopping_x = config.stopping_x
+        self.stopping_y = config.stopping_y
+        self.robot_size_x = config.robot_size_x
+        self.robot_size_y = config.robot_size_y
+
+        # may need to refresh the following values after config changes
+        self.upper_linear_limit = self.max_linear_speed
+        self.lower_linear_limit = -self.max_linear_speed
+        self.upper_rotation_limit = self.max_angular_speed
+        self.lower_rotation_limit = -self.max_angular_speed
+        return config
     
 
     def initialize_csv(self):
@@ -336,7 +366,7 @@ class PathFollower:
                 #rospy.loginfo(f"[Follower {self.robot_id}] is too fast. expected to arrive at target at {time.time() + (distance_to_target / self.max_linear_speed)} but waypoint is occupied from {self.target_waypoint.occupied_from + self.trajectory_start_time}")
                 break
 
-            if costmap_data is not None and costmap_data[self.target_waypoint.pixel_position.x, self.target_waypoint.pixel_position.y] == 0:
+            if costmap_data is not None and self.target_waypoint is not None and costmap_data[self.target_waypoint.pixel_position.x, self.target_waypoint.pixel_position.y] == 0:
                 rospy.loginfo(f"[Follower {self.robot_id}] Waypoint is inside an obstacle")
                 break
             self.reached_waypoints += 1
@@ -344,7 +374,11 @@ class PathFollower:
             if len(self.trajectory.path) <= self.reached_waypoints:
                 continue
             self.target_waypoint = self.trajectory.path[self.reached_waypoints]
-            distance_to_target : float = self.get_distance(self.robot_pose, self.target_waypoint)
+            distance_to_target : float = 0.0
+            if self.target_waypoint is not None:
+                distance_to_target : float = self.get_distance(self.robot_pose, self.target_waypoint)
+            else:
+                rospy.logwarn(f"[Follower {self.robot_id}] Waypoint is None")
         if self.reached_waypoints < len(self.trajectory.path):
             return self.trajectory.path[self.reached_waypoints]
         return None

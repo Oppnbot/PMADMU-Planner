@@ -31,6 +31,7 @@ from pmadmu_planner.srv import TransformPixelToWorld, TransformPixelToWorldRespo
 from geometry_msgs.msg import Pose
 from nav_msgs.msg import OccupancyGrid
 
+from pmadmu_planner.cfg import PathFinderConfig
 
 class Waypoint():
     def __init__(self, pixel_pos : tuple[int, int], occupied_from: float, occupied_until : float = float('inf'), world_pos : Pose|None = None, previous_waypoint:Waypoint|None = None):
@@ -76,6 +77,7 @@ class Waypoint():
 class PathFinder:
     def __init__(self, robot_name : str = "unknown", robot_id : int = -1):
         # -------- CONFIG START --------
+        #! you can change these parameters via rqt or the FollowerConfig.cfg file
         self.static_time_tolerance: float = 4.0     # [s] estimation of how long the robot needs to travel between two grid spaces. will add a static length to the "snakes"
         self.dynamic_time_tolerance : float = 1.5   # [s] estimation of motion uncertainty. lets "snakes" grow over time
 
@@ -85,21 +87,38 @@ class PathFinder:
 
         self.check_dynamic_obstacles : bool = True
         self.dynamic_visualization : bool = False # publishes timing map after every step, very expensive
-        self.kernel_size : int = 3 #!kernel size -> defines the safety margins for dynamic and static obstacles; grid_size * kernel_size = robot_size
+        
         self.speed : float = 0.5
         # -------- CONFIG END --------
+        self.kernel_size : int = 3 #!kernel size -> defines the safety margins for dynamic and static obstacles; grid_size * kernel_size = robot_size
+        
 
         self.robot_name : str = robot_name
         self.robot_id : int = robot_id
-        
         self.robot_pose : Pose | None = None
         self.static_obstacles : OccupancyGrid | None = None
+        
         rospy.Subscriber(f'/{robot_name}/robot_pose', Pose, self.update_pose)
         rospy.Subscriber(f'/{robot_name}/mir_pose_simple', Pose, self.update_pose)
         rospy.Subscriber('/pmadmu_planner/static_obstacles', OccupancyGrid, self.read_static_obstacles)
         self.status_publisher = rospy.Publisher('/pmadmu_planner/follower_status', FollowerFeedback, queue_size=10, latch=True)
         #self.trajectory_publisher : rospy.Publisher = rospy.Publisher('pmadmu_planner/trajectory', Trajectory, queue_size=10, latch=True)
         return None
+    
+
+
+    def config_change(self, config, level):
+        self.static_time_tolerance = config.static_time_tolerance
+        self.dynamic_time_tolerance = config.dynamic_time_tolerance
+        self.allow_straights = config.allow_straights
+        self.allow_diagonals = config.allow_diagonals
+        self.allow_knight_moves = config.allow_knight_moves
+        self.check_dynamic_obstacles = config.check_dynamic_obstacles
+        self.dynamic_visualization = config.dynamic_visualization
+        self.speed = config.speed
+        rospy.loginfo(f"[Planner {self.robot_name}] Applied config changes")
+        return config
+
 
 
     def update_pose(self, pose: Pose) -> None:
